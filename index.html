@@ -165,7 +165,7 @@
     const db = firebase.firestore();
 
     // 2. Carregar arquivo .json e implementar busca insensível a maiúsculas/acentos
-    let lista = [];
+    let listaEscolas = []; // ✅ Corrigido aqui
 
     function normalizarTexto(texto) {
       return texto
