@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inscrições - Olimpíada CEPAE</title>
+  <style>
+    :root {
+      --primary-color: #1a73e8;
+      --bg-color: #f8f9fa;
+      --card-bg: #ffffff;
+      --text-color: #202124;
+      --border-color: #dadce0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      background: var(--card-bg);
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      padding: 30px;
+      max-width: 500px;
+      width: 100%;
+    }
+
+    h1 {
+      color: var(--primary-color);
+      font-size: 1.5rem;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+      position: relative;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 5px;
+      font-size: 0.9rem;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--primary-color);
+    }
+
+    /* Sugestões do Auto-complete de Escolas */
+    .autocomplete-list {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: #fff;
+      border: 1px solid var(--border-color);
+      border-top: none;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 1000;
+      border-radius: 0 0 4px 4px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .autocomplete-item {
+      padding: 10px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    .autocomplete-item:hover {
+      background-color: #f1f3f4;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background-color: #1557b0;
+    }
+
+    .msg-status {
+      margin-top: 15px;
+      text-align: center;
+      font-size: 0.9rem;
+      font-weight: bold;
+    }
+  </style>
+
+  <!-- Firebase SDK (v9/v10 Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+  <div class="container">
+    <h1>Inscrição - Olimpíada CEPAE</h1>
+    
+    <form id="formInscricao">
+      <div class="form-group">
+        <label for="nome">Nome Completo</label>
+        <input type="text" id="nome" required placeholder="Digite seu nome completo">
+      </div>
+
+      <div class="form-group">
+        <label for="cpf">CPF</label>
+        <input type="text" id="cpf" required placeholder="000.000.000-00" maxlength="14">
+      </div>
+
+      <div class="form-group">
+        <label for="escolaInput">Escola</label>
+        <input type="text" id="escolaInput" required placeholder="Digite o nome da sua escola..." autocomplete="off">
+        <div id="autocompleteList" class="autocomplete-list" style="display: none;"></div>
+      </div>
+
+      <button type="submit" id="btnEnviar">Realizar Inscrição</button>
+    </form>
+
+    <div id="msgStatus" class="msg-status"></div>
+  </div>
+
+  <script>
+    // 1. Configuração do Firebase
+    const firebaseConfig = {
+      projectId: "olimpiada-cepae-testes"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // 2. Carregar arquivo escolas.json e implementar busca insensível a maiúsculas/acentos
+    let listaEscolas = [];
+
+    function normalizarTexto(texto) {
+      return texto
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+    }
+
+    fetch('escolas.json')
+      .then(res => res.json())
+      .then(data => {
+        listaEscolas = data;
+      })
+      .catch(err => console.error("Erro ao carregar escolas.json:", err));
+
+    const escolaInput = document.getElementById('escolaInput');
+    const autocompleteList = document.getElementById('autocompleteList');
+
+    escolaInput.addEventListener('input', function() {
+      const valor = normalizarTexto(this.value);
+      autocompleteList.innerHTML = '';
+
+      if (!valor || valor.length < 2) {
+        autocompleteList.style.display = 'none';
+        return;
+      }
+
+      const filtradas = listaEscolas.filter(e => 
+        normalizarTexto(e.nome).includes(valor) || 
+        normalizarTexto(e.municipio).includes(valor)
+      ).slice(0, 10); // Limita a 10 resultados
+
+      if (filtradas.length === 0) {
+        autocompleteList.style.display = 'none';
+        return;
+      }
+
+      filtradas.forEach(escola => {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item';
+        item.textContent = `${escola.nome} (${escola.municipio})`;
+        item.addEventListener('click', () => {
+          escolaInput.value = `${escola.nome} - ${escola.municipio}`;
+          autocompleteList.style.display = 'none';
+        });
+        autocompleteList.appendChild(item);
+      });
+
+      autocompleteList.style.display = 'block';
+    });
+
+    document.addEventListener('click', function(e) {
+      if (e.target !== escolaInput) {
+        autocompleteList.style.display = 'none';
+      }
+    });
+
+    // 3. Submissão do Formulário
+    document.getElementById('formInscricao').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const btn = document.getElementById('btnEnviar');
+      const msg = document.getElementById('msgStatus');
+
+      btn.disabled = true;
+      msg.textContent = "Enviando inscrição...";
+      msg.style.color = "#1a73e8";
+
+      const nome = document.getElementById('nome').value.trim();
+      const cpf = document.getElementById('cpf').value.trim();
+      const escola = document.getElementById('escolaInput').value.trim();
+
+      try {
+        await db.collection('inscricoes').add({
+          nome: nome,
+          cpf: cpf,
+          escola: escola,
+          dataCriacao: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        msg.textContent = "Inscrição realizada com sucesso!";
+        msg.style.color = "green";
+        document.getElementById('formInscricao').reset();
+      } catch (error) {
+        console.error("Erro ao inscrever:", error);
+        msg.textContent = "Erro ao enviar inscrição. Tente novamente.";
+        msg.style.color = "red";
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
