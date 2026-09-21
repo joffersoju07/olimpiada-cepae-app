@@ -164,8 +164,8 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // 2. Carregar arquivo escolas.json e implementar busca insensível a maiúsculas/acentos
-    let listaEscolas = [];
+    // 2. Carregar arquivo .json e implementar busca insensível a maiúsculas/acentos
+    let lista = [];
 
     function normalizarTexto(texto) {
       return texto
@@ -174,12 +174,12 @@
         .replace(/[\u0300-\u036f]/g, "");
     }
 
-    fetch('escolas.json')
+    fetch('allescolas.json')
       .then(res => res.json())
       .then(data => {
         listaEscolas = data;
       })
-      .catch(err => console.error("Erro ao carregar escolas.json:", err));
+      .catch(err => console.error("Erro ao carregar allescolas.json:", err));
 
     const escolaInput = document.getElementById('escolaInput');
     const autocompleteList = document.getElementById('autocompleteList');
