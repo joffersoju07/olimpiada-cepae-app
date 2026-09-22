@@ -51,6 +51,12 @@
       position: relative;
     }
 
+    /* Campo Armadilha (Honeypot) - Oculto para humanos */
+    .website-field-hp {
+      display: none !important;
+      visibility: hidden !important;
+    }
+
     label {
       display: block;
       font-weight: 600;
@@ -72,7 +78,6 @@
       border-color: var(--primary-color);
     }
 
-    /* Sugestões do Auto-complete de Escolas */
     .autocomplete-list {
       position: absolute;
       top: 100%;
@@ -124,7 +129,7 @@
     }
   </style>
 
-  <!-- Firebase SDK (v9/v10 Compat) -->
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 </head>
@@ -134,6 +139,12 @@
     <h1>Inscrição - Olimpíada CEPAE</h1>
     
     <form id="formInscricao">
+      <!-- HONEYPOT FIELD (Bloqueia bots sem afetar pessoas) -->
+      <div class="website-field-hp">
+        <label for="website_url">Não preencha este campo se for humano:</label>
+        <input type="text" id="website_url" name="website_url" tabindex="-1" autocomplete="off">
+      </div>
+
       <div class="form-group">
         <label for="nome">Nome Completo</label>
         <input type="text" id="nome" required placeholder="Digite seu nome completo">
@@ -157,17 +168,16 @@
   </div>
 
   <script>
-    // 1. Configuração do Firebase
     const firebaseConfig = {
       projectId: "olimpiada-cepae-testes"
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // 2. Máscara de CPF Automática
+    // Máscara de CPF Automática
     const cpfInput = document.getElementById('cpf');
     cpfInput.addEventListener('input', function(e) {
-      let v = e.target.value.replace(/\D/g, ''); // Remove o que não for dígito
+      let v = e.target.value.replace(/\D/g, '');
       if (v.length > 11) v = v.slice(0, 11);
       v = v.replace(/(\d{3})(\d)/, '$1.$2');
       v = v.replace(/(\d{3})(\d)/, '$1.$2');
@@ -175,13 +185,12 @@
       e.target.value = v;
     });
 
-    // 3. Algoritmo de Validação Oficial de CPF
+    // Validação Algorítmica de CPF (Receita Federal)
     function validarCPF(cpf) {
       cpf = cpf.replace(/[^\d]+/g, '');
       if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
 
-      let soma = 0;
-      let resto;
+      let soma = 0, resto;
       for (let i = 1; i <= 9; i++) soma += parseInt(cpf.substring(i - 1, i)) * (11 - i);
       resto = (soma * 10) % 11;
       if (resto === 10 || resto === 11) resto = 0;
@@ -196,13 +205,50 @@
       return true;
     }
 
-    // 4. Validador de Nome Completo
+    // Validação Avançada de Nome Completo + Anti-Gibberish (Digitação Aleatória)
     function validarNome(nome) {
+      // 1. Apenas letras, acentos e espaços
+      const apenasLetras = /^[A-Za-zÀ-ÖØ-öø-ÿ\s]+$/;
+      if (!apenasLetras.test(nome)) return false;
+
+      // 2. Divisão das palavras
       const partes = nome.trim().split(/\s+/);
-      return partes.length >= 2 && partes.every(p => p.length >= 2);
+      if (partes.length < 2) return false; // Exige pelo menos nome e sobrenome
+
+      // Lista de padrões de digitação aleatória comuns no teclado
+      const padroesTeclado = [
+        "asdf", "sdfg", "dfgh", "fghj", "ghjk", "hjkl",
+        "qwert", "werty", "ertyu", "rtyui", "tyuio", "yuiop",
+        "zxcv", "xcvb", "cvbn", "vbnm",
+        "lkjh", "kjhg", "jhgf", "hgfd", "gfds", "fdsa"
+      ];
+
+      for (let palavra of partes) {
+        if (palavra.length < 2) return false;
+
+        const palavraMinuscula = palavra.toLowerCase();
+
+        // Bloqueia repetição da mesma letra 3 ou mais vezes seguidas (ex: "aaa", "zzz")
+        if (/(.)\1\1/.test(palavraMinuscula)) return false;
+
+        // Bloqueia padrões conhecidos de deslize no teclado (ex: "asdf", "qwerty")
+        if (padroesTeclado.some(padrao => palavraMinuscula.includes(padrao))) return false;
+
+        // Toda palavra com 3+ letras precisa ter ao menos UMA vogal (a, e, i, o, u, y ou acentuadas)
+        if (palavra.length >= 3 && !/[aeiouyà-öø-ÿ]/i.test(palavraMinuscula)) {
+          return false;
+        }
+
+        // Bloqueia sequências exageradas de 5 ou mais consoantes juntas
+        if (/[bcdfghjklmnpqrstvwxz]{5,}/i.test(palavraMinuscula)) {
+          return false;
+        }
+      }
+
+      return true;
     }
 
-    // 5. Carregar arquivo .json e busca de escolas
+    // Busca de escolas
     let listaEscolas = [];
 
     function normalizarTexto(texto) {
@@ -214,10 +260,8 @@
 
     fetch('allescolas.json')
       .then(res => res.json())
-      .then(data => {
-        listaEscolas = data;
-      })
-      .catch(err => console.error("Erro ao carregar allescolas.json:", err));
+      .then(data => { listaEscolas = data; })
+      .catch(err => console.error("Erro ao carregar escolas:", err));
 
     const escolaInput = document.getElementById('escolaInput');
     const autocompleteList = document.getElementById('autocompleteList');
@@ -261,25 +305,34 @@
       }
     });
 
-    // 6. Submissão do Formulário com Validação
+    // Submissão do Formulário
     document.getElementById('formInscricao').addEventListener('submit', async (e) => {
       e.preventDefault();
 
       const btn = document.getElementById('btnEnviar');
       const msg = document.getElementById('msgStatus');
 
+      // 1. HONEYPOT: Se preencheu o campo invisível, descarta
+      const hpValue = document.getElementById('website_url').value;
+      if (hpValue) {
+        msg.textContent = "Inscrição realizada com sucesso!";
+        msg.style.color = "green";
+        document.getElementById('formInscricao').reset();
+        return;
+      }
+
       const nome = document.getElementById('nome').value.trim();
       const cpf = document.getElementById('cpf').value.trim();
       const escola = document.getElementById('escolaInput').value.trim();
 
-      // Validação de Nome
+      // 2. Validação do Nome (Com checagem anti-gibberish)
       if (!validarNome(nome)) {
-        msg.textContent = "Por favor, informe seu nome completo (nome e sobrenome).";
+        msg.textContent = "Nome inválido. Verifique o nome completo digitado.";
         msg.style.color = "red";
         return;
       }
 
-      // Validação de CPF
+      // 3. Validação do CPF
       if (!validarCPF(cpf)) {
         msg.textContent = "CPF inválido. Verifique os números digitados.";
         msg.style.color = "red";
@@ -287,10 +340,23 @@
       }
 
       btn.disabled = true;
-      msg.textContent = "Enviando inscrição...";
+      msg.textContent = "Verificando dados...";
       msg.style.color = "#1a73e8";
 
       try {
+        // 4. CONSULTA AO FIREBASE: Checa se o CPF já está cadastrado
+        const buscaCpf = await db.collection('inscricoes').where('cpf', '==', cpf).get();
+
+        if (!buscaCpf.empty) {
+          msg.textContent = "Este CPF já possui uma inscrição realizada!";
+          msg.style.color = "orange";
+          btn.disabled = false;
+          return;
+        }
+
+        msg.textContent = "Enviando inscrição...";
+
+        // 5. Salva no Firebase
         await db.collection('inscricoes').add({
           nome: nome,
           cpf: cpf,
