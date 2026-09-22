@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -44,7 +44,7 @@
       overflow-y: auto;
       font-family: monospace;
       font-size: 0.78rem;
-      white-space: nowrap; /* Impede a quebra de linha individual por registro */
+      white-space: nowrap;
     }
     .log-line { margin-bottom: 3px; }
     .sucesso { color: #00ff00; }
@@ -105,7 +105,7 @@
     function log(mensagem, classe = "sucesso") {
       const logDiv = document.getElementById('log');
       const hora = new Date().toLocaleTimeString();
-      logDiv.innerHTML += `<div class="log-line ${classe}">[${hora}]${mensagem}</div>`;
+      logDiv.innerHTML += `<div class="log-line ${classe}">[${hora}] ${mensagem}</div>`;
       logDiv.scrollTop = logDiv.scrollHeight;
     }
 
@@ -114,7 +114,7 @@
       const btn = document.getElementById('btnRodar');
       const logDiv = document.getElementById('log');
       
-      logDiv.innerHTML = ""; // Limpa logs anteriores
+      logDiv.innerHTML = "";
       btn.disabled = true;
 
       let sucessos = 0;
@@ -136,17 +136,17 @@
           });
 
           sucessos++;
-          log(`✔ [${i}/${qtd}] ${nomeAleatorio} (CPF:${cpfAleatorio})`, "sucesso");
+          log(`✔ [${i}/${qtd}] ${nomeAleatorio} (CPF: ${cpfAleatorio})`, "sucesso");
         } catch (error) {
           erros++;
-          log(`✖ [${i}/${qtd}] Erro:${error.message}`, "erro");
+          log(`✖ [${i}/${qtd}] Erro: ${error.message}`, "erro");
         }
 
         await new Promise(r => setTimeout(r, 250));
       }
 
       log(`--------------------------------------------------`, "info");
-      log(`<b>RELATÓRIO FINAL:</b> ${sucessos} inseridos com sucesso \vert{}${erros} falhas/erros.`, "info");
+      log(`<b>RELATÓRIO FINAL:</b> ${sucessos} inseridos com sucesso | ${erros} falhas/erros.`, "info");
       btn.disabled = false;
     }
   </script>
