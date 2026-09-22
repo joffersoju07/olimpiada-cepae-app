@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gerador de Inscrições para Testes - CEPAE</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 30px;
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: #f4f6f8;
+    }
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h2 { color: #1a73e8; margin-bottom: 15px; }
+    .form-group { margin-bottom: 15px; }
+    label { font-weight: bold; display: block; margin-bottom: 5px; }
+    input { width: 100%; padding: 8px; box-sizing: border-box; }
+    button {
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      width: 100%;
+    }
+    button:disabled { background-color: #ccc; }
+    #log {
+      margin-top: 20px;
+      background: #222;
+      color: #00ff00;
+      padding: 10px;
+      border-radius: 4px;
+      height: 200px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.85rem;
+    }
+  </style>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+  <div class="card">
+    <h2>Gerador de Testes de Inscrição</h2>
+    <div class="form-group">
+      <label for="qtd">Quantidade de inscrições a enviar:</label>
+      <input type="number" id="qtd" value="5" min="1" max="100">
+    </div>
+    <button id="btnRodar" onclick="executarTeste()">Gerar e Enviar Inscrições</button>
+
+    <div id="log">Aguardando início do teste...</div>
+  </div>
+
+  <script>
+    // Configuração do seu Firebase
+    const firebaseConfig = {
+      projectId: "olimpiada-cepae-testes"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // Gerador de CPF Válido para testes
+    function gerarCPFValido() {
+      const random = () => Math.floor(Math.random() * 9);
+      let n = Array.from({length: 9}, random);
+
+      let d1 = n.reduce((acc, curr, idx) => acc + curr * (10 - idx), 0);
+      d1 = 11 - (d1 % 11);
+      if (d1 >= 10) d1 = 0;
+
+      let d2 = [...n, d1].reduce((acc, curr, idx) => acc + curr * (11 - idx), 0);
+      d2 = 11 - (d2 % 11);
+      if (d2 >= 10) d2 = 0;
+
+      const cpfPuro = [...n, d1, d2].join('');
+      return cpfPuro.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    }
+
+    // Listas para combinar nomes realistas
+    const nomes = ["Carlos", "Fernanda", "Bruno", "Natalia", "Eduardo", "Amanda", "Lucas", "Beatriz", "João", "Mariana"];
+    const sobrenomes = ["Silva", "Rocha", "Oliveira", "Costa", "Ramos", "Souza", "Lopes", "Ferreira", "Carvalho", "Ribeiro"];
+    const escolas = [
+      "Colégio Estadual Hugo de Carvalho Ramos",
+      "CEPAE - UFG",
+      "IFG - Câmpus Goiânia",
+      "CPMG - Dionária Rocha",
+      "ESCOLA MARIA MONTESSORI - Anápolis"
+    ];
+
+    function log(mensagem) {
+      const logDiv = document.getElementById('log');
+      logDiv.innerHTML += `<br>[${new Date().toLocaleTimeString()}] ${mensagem}`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    async function executarTeste() {
+      const qtd = parseInt(document.getElementById('qtd').value) || 5;
+      const btn = document.getElementById('btnRodar');
+      btn.disabled = true;
+
+      log(`Iniciando envio de ${qtd} inscrições de teste...`);
+
+      for (let i = 1; i <= qtd; i++) {
+        const nomeAleatorio = `${nomes[Math.floor(Math.random() * nomes.length)]} ${sobrenomes[Math.floor(Math.random() * sobrenomes.length)]} Teste${Math.floor(Math.random() * 1000)}`;
+        const cpfAleatorio = gerarCPFValido();
+        const escolaAleatoria = escolas[Math.floor(Math.random() * escolas.length)];
+
+        try {
+          await db.collection('inscricoes').add({
+            nome: nomeAleatorio,
+            cpf: cpfAleatorio,
+            escola: escolaAleatoria,
+            dataCriacao: firebase.firestore.FieldValue.serverTimestamp()
+          });
+
+          log(`? [${i}/${qtd}] Criado: ${nomeAleatorio} (CPF: ${cpfAleatorio})`);
+        } catch (error) {
+          log(`? [${i}/${qtd}] Erro ao enviar: ${error.message}`);
+        }
+
+        // Aguarda 300ms entre envios para não sobrecarregar
+        await new Promise(r => setTimeout(r, 300));
+      }
+
+      log(`<b>Processo concluído! ${qtd} registros salvos no Firebase.</b>`);
+      btn.disabled = false;
+    }
+  </script>
+</body>
+</html>
